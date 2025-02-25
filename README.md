@@ -22,9 +22,9 @@ To further augment the training data, additional datasets were incorporated from
 * [1002 Short Stories from Project Gutenberg](https://www.kaggle.com/datasets/shubchat/1002-short-stories-from-project-guttenberg)
 * [Reddit Short Stories](https://www.kaggle.com/datasets/trevordu/reddit-short-stories)
 
-## Dataset
+## Fine-tuned model & Dataset
 
-The dataset used for fine-tuning is available through this [link](insert).
+The Finetuned model as well as the dataset used for fine-tuning is available through this [link](https://drive.google.com/drive/folders/1msWAav931TAglvYCORMYY3L1Ub2gpEcL?usp=drive_link).
 
 
 ## Tech-stack
