@@ -9,12 +9,12 @@ from transformers import AutoTokenizer
 from peft import PeftModel
 
 # 1) Import the IndicTransToolkit
-from IndicTransToolkit import IndicProcessor
+from IndicTransToolkit.processor import IndicProcessor
 
 ########################################
 # 2) Load the IndicTrans2 translation model
 ########################################
-model_name = "ai4bharat/indictrans2-indic-en-1B"  # Example: English <-> Indian languages
+model_name = "ai4bharat/indictrans2-en-indic-1B"
 translator_tokenizer = AutoTokenizerSeq2Seq.from_pretrained(model_name, trust_remote_code=True)
 translator_model = AutoModelForSeq2SeqLM.from_pretrained(model_name, trust_remote_code=True)
 translator_model.eval()
@@ -35,9 +35,10 @@ story_tokenizer = AutoTokenizer.from_pretrained(base_model_name, trust_remote_co
 if story_tokenizer.pad_token is None:
     story_tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
+story_tokenizer.pad_token_id = story_tokenizer.eos_token_id
 base_model = AutoModelForCausalLM.from_pretrained(base_model_name, trust_remote_code=True)
 base_model.resize_token_embeddings(len(story_tokenizer))
-model = PeftModel.from_pretrained(base_model, "./final_model")
+model = PeftModel.from_pretrained(base_model, "./my_finetuned_model")
 model.eval()
 model.to(device)
 
@@ -65,7 +66,7 @@ LANG_CODE_MAP = {
 def translate_prompt_to_indic(prompt_text, target_label):
     """Translate an English prompt to the chosen Indian language using IndicTrans2"""
     # If target is English, skip
-    if target_label == "English (en)":
+    if target_label == "English (en)" :
         return prompt_text
 
     # Use the language code from the map
@@ -79,7 +80,7 @@ def translate_prompt_to_indic(prompt_text, target_label):
         src_lang=src_lang_code,
         tgt_lang=tgt_lang_code,
     )
-
+    print("DEBUG - Preprocessed batch:", batch)
     inputs = translator_tokenizer(
         batch,
         truncation=True,
@@ -119,24 +120,28 @@ def translate_prompt_to_indic(prompt_text, target_label):
 def generate_story(language_label, prompt_text, theme):
     # Translate the user prompt from English to the chosen Indian language if needed
     translated_prompt = translate_prompt_to_indic(prompt_text, language_label)
-
+    # DEBUG: Check what the translator actually returns
+    print("DEBUG - Translated prompt:\n", translated_prompt)
     # Build the final input to the model
-    model_prompt = f"Write a {theme.lower()} folklore story in {language_label}:\n{translated_prompt}\n"
-
-    input_ids = story_tokenizer(model_prompt, return_tensors="pt").input_ids.to(device)
-
+    instruction = f"Write a {theme.lower()} folklore story in {language_label}:\n"
+    instruction_indic = translate_prompt_to_indic(instruction, language_label)
+    model_prompt = f"{instruction_indic}{translated_prompt}\n"
+    print(f"Model prompt is this:{model_prompt}")
+    inputs = story_tokenizer(model_prompt, return_tensors="pt",padding=True,truncation=True)
+    input_ids = inputs["input_ids"].to(device)
+    attention_mask = inputs["attention_mask"].to(device)
     # Generate
     with torch.no_grad():
         generated_ids = model.generate(
-            input_ids,
-            max_new_tokens=500,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            max_new_tokens=10000,
             no_repeat_ngram_size=2,
             do_sample=True,
-            temperature=0.7,
+            temperature=0.3,
             top_p=0.95,
             eos_token_id=story_tokenizer.eos_token_id
         )
-
     # Decode
     output_text = story_tokenizer.decode(generated_ids[0], skip_special_tokens=True)
     return output_text
@@ -183,5 +188,5 @@ def build_ui():
     return demo
 
 if __name__ == "__main__":
-    ui = build_ui()
-    ui.launch(debug=True)
+    demo = build_ui()
+    demo.launch(debug=True)
